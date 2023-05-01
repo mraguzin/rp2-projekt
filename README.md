@@ -17,4 +17,5 @@ minimizacijskih algoritama tiče, u Aho & Ullman i knjizi An Introduction to For
 * mogućnost spremanja dobivenog automata u nekakvu (standardnu?) tekstualnu reprezentaciju grafa i mogućnost stvaranja automata iz takve reprezentacije;
 * mogućnost učitavanja riječi za koju se testira ako pripada regularnom jeziku kojeg opisuje regularni izraz;
 * parser koji zanemaruje moguće probleme u ulaznom regexu, a to praktički mogu biti samo krivo sparene (ili uopće ne sparene) zagrade i pretpostavlja što je korisnik htio reći;
+* dodati mogućnost specificiranja klasa regexa, poput [A-Z] i sl.
 * ?...
