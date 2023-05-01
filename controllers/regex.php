@@ -1,6 +1,6 @@
 <?php
 class Regex {
-    private $korijen = Regex::KONKATENACIJA;
+    public $korijen = Regex::KONKATENACIJA;
     public $znak;
     public $lijevaDjeca = [];
     public $desnoDijete;
@@ -9,7 +9,8 @@ class Regex {
     // tražiti posljednjeg člana grupe kako bismo saznali je li grupa pod zvijezdom, upitnikom itd.
     //private $djeca = [];
     private static $pomak = 0;
-    private $ulaz; // ulazni regex string
+    private $ulaz; // ulazni regex string, razdijeljen u pojedinačne Unicode znakove
+    private $id; // jedinstveni ID ovog regexa i ekvivalentnog mu automata
 
     public const ZNAK          = 0; // znak abecede
 
@@ -117,6 +118,7 @@ class Regex {
                     $dijete = Regex::kaoZnak(Regex::ZNAK, $znak);
 
                 $dijete->odrediTipGrupe();
+                $this->lijevaDjeca[] = $dijete;
             }
         }
     }
