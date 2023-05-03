@@ -151,12 +151,13 @@ class NKA {
 
             $x = $prosliX; $y = $prosliY;
             $prosloStanje = $imeKraja;
+            $inicijalnoStanje = $imePocetka;
         }
 
         if ($inicijalniPoziv)
             $nka->uciniZavrsnim($prosloStanje);
 
-        return [$nka, $x, $y, $prosloStanje];
+        return [$nka, $x, $y, $inicijalnoStanje, $prosloStanje];
     }
 
     public function dodajCvor($stanje, $cvor, $prijelazi) {
