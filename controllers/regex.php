@@ -99,6 +99,7 @@ class Regex {
             } else if ($znak === '|') {
                 $this->korijen = Regex::UNIJA;
                 $this->desnoDijete = new Regex($this->ulaz, $this->pomak, $uZagradi);
+                $this->tipGrupe = $this->desnoDijete->tipGrupe; // propagiraj tip grupe jer ga želimo imati na samom početku, radi izbjegavanja skeniranja
             } else if ($znak === '*' || $znak === '+' || $znak === '?') { // beskorisno, ali dopustivo
                 continue;
             } else if ($znak === -1) {

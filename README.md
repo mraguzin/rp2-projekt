@@ -12,6 +12,11 @@ računalo. Autentikacija korisnika je moguća i preko vanjskih servisa poput Goo
 Neki tehnički detalji: koristimo MVC, JS je na frontendu za (interaktivno) crtanje automata na canvasu i neke druge GUI radnje, a PHP & MariaDB na backendu
 za izvođenje samih algoritama i spremanje objekata (što uključuje i korisnike) u bazu. Relevantna teorija vezana za ovo područje je u Sipseru i, što se
 minimizacijskih algoritama tiče, u Aho & Ullman i knjizi An Introduction to Formal Languages and Automata (Peter Linz).
+Crtanje na frontendu se obavlja preko JS koda u canvas HTML elementu, s tim da još treba odlučiti najbolji način odmicanja čvorova da se ne sudaraju;
+možemo nekakvu kratku nbody simulaciju koja ih razdvoji unutar nekoliko koraka (mase distribuiramo na neki smislen način po stanjima), ili možemo
+jednostavno iskoristiti Graphviz da nam generira DOT digrafa i onda mi samo pretvorimo to u JS naredbe za crtanje na canvasu. Prednost potonjeg pristupa
+je što automatski dobivamo i lijepe Bezier lukove i skoro-planarne grafove s minimalno interferencija. Taj pristup sam iskoristio u `decisiontrees`
+projektu ovdje na GitHubu.
 
 # Moguće dodatne stvari
 * mogućnost spremanja dobivenog automata u nekakvu (standardnu?) tekstualnu reprezentaciju grafa i mogućnost stvaranja automata iz takve reprezentacije;
