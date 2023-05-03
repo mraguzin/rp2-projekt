@@ -94,13 +94,13 @@ class Regex {
                 if (!$uZagradi)
                     throw new DomainException('Uneseni tekst nije važeći regularan izraz jer zatvarate neotvorenu zagradu!');
 
-                $this->odrediTipGrupe();  //TODO: optimizacija kod zatvaranja grupe: jednostavno promijeni samo početni tip grupe i neka on označava CIJELI BLOK!
+                $this->odrediTipGrupe();
                 return;
             } else if ($znak === '|') {
                 $this->korijen = Regex::UNIJA;
                 $this->desnoDijete = new Regex($this->ulaz, $this->pomak, $uZagradi);
                 $this->tipGrupe = $this->desnoDijete->tipGrupe; // propagiraj tip grupe jer ga želimo imati na samom početku, radi izbjegavanja skeniranja
-            } else if ($znak === '*' || $znak === '+' || $znak === '?') { // beskorisno, ali dopustivo
+            } else if ($znak === '*' || $znak === '+' || $znak === '?') { // trebamo podržavati prazne */+/? ako želimo moći dobiti ε u jeziku u nekim situacijama
                 continue;
             } else if ($znak === -1) {
                 if ($uZagradi)

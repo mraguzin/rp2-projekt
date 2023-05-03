@@ -14,7 +14,6 @@ class Cvor {
 
     public function __construct($zavrsno, $x, $y)
     {
-        //$this->stanje = $stanje;
         $this->zavrsno = $zavrsno;
         $this->x = $x;
         $this->y = $y;
@@ -83,7 +82,7 @@ class NKA {
         }
     }
 
-    public static function izRegexa($regex, $nka=null, $inicijalnoStanje=null, $x=0, $y=0) {
+    public static function izRegexa($regex, $nka=null, $inicijalnoStanje=null, $x=0, $y=0) { // FIXME: x,y relativno pozicioniranje ovdje je totalno broken
         if (!isset($nka)) {
             $inicijalniPoziv = true;
             NKA::$brojStanja = 0;
@@ -95,11 +94,12 @@ class NKA {
             $inicijalnoStanje = $ime;
         }
 
-        if ($regex->korijen === Regex::ZNAK) {
+        if ($regex->korijen === Regex::ZNAK || $regex->korijen === Regex::SVI_ZNAKOVI) {
             $zavrsno = new Cvor(false, $x + 10, $y);
             $ime = NKA::generirajImeCvora();
             $nka->dodajCvor($ime, $zavrsno, []);
-            $nka->dodajPrijelaze($inicijalnoStanje, [$ime, $regex->znak]);
+            $oznaka = $regex->korijen === Regex::ZNAK ? $regex->znak : 'Σ';
+            $nka->dodajPrijelaze($inicijalnoStanje, [$ime, $oznaka]);
 
             return [$nka, $x + 10, $y, $inicijalnoStanje, $ime];
         }
@@ -108,25 +108,27 @@ class NKA {
             $nka->uciniZavrsnim($inicijalnoStanje);
             return [$nka, $x, $y, $inicijalnoStanje, $inicijalnoStanje];
         }
+        
+        if ($regex->korijen === Regex::UNIJA) {
+            $lijevo = new Cvor(false, $x + 10, $y + 15);
+            $ime = NKA::generirajImeCvora();
+            $nka->dodajCvor($ime, $lijevo, []);
+            $inicijalnoStanje = $ime;
+        }
 
         $prosloStanje = $inicijalnoStanje;
         $prosliX = $x; $prosliY = $y;
         foreach ($regex->lijevaDjeca as $lijevoDijete) {   
-            if ($regex->korijen === Regex::UNIJA) 
-                $lijevo = new Cvor(false, $x += 10, $y += 15);
-            else
-                $lijevo = new Cvor(false, $x += 10, $y);
-            $ime = NKA::generirajImeCvora();
-            $nka->dodajCvor($ime, $lijevo, []);
-            if ($lijevoDijete->korijen === Regex::ZNAK && $lijevoDijete->tipGrupe === Regex::NEMA_GRUPE)
-                $nka->dodajPrijelaze($prosloStanje, [[$ime, $lijevoDijete->znak]]);
+            if (($lijevoDijete->korijen === Regex::ZNAK || $lijevoDijete->korijen === Regex::SVI_ZNAKOVI) && $lijevoDijete->tipGrupe === Regex::NEMA_GRUPE)
+                //$nka->dodajPrijelaze($prosloStanje, [[$ime, $lijevoDijete->znak]]);
+                [$x, $y, $prvoStanje, $prosloStanje] = NKA::izRegexa($lijevoDijete, $nka, $prosloStanje, $x + 10, $y);
             else {// if (NKA::jeLiGrupa($lijevoDijete->tipGrupe)) {
                 //$pocetakGrupe = new Cvor(false, $x + 10, $y);
-                [$x, $y, $prvoStanje, $ime] = NKA::kleene($ime, $lijevoDijete, $nka, $x + 10, $y);
-                $nka->dodajPrijelaze($prosloStanje, [[$prvoStanje, 'ε']]); // TODO: minimizacija: moguće je eliminirati ovo stanje (prvoStanje)
+                [$x, $y, $prvoStanje, $prosloStanje] = NKA::kleene($prosloStanje, $lijevoDijete, $nka, $x + 10, $y);
+                if ($prosloStanje !== $prvoStanje)
+                    $nka->dodajPrijelaze($prosloStanje, [[$prvoStanje, 'ε']]); // TODO: minimizacija: moguće je eliminirati ovo stanje (prvoStanje)
                 // jer prosloStanje može obaviti sve te iste prijelaze, samo premjesti i izbriši
             }
-            $prosloStanje = $ime;
         }
 
         $x = $prosliX; $y = $prosliY;
@@ -135,7 +137,7 @@ class NKA {
             $imeKraja = NKA::generirajImeCvora();
             $prosliX = $x + 10; $prosliY = $y + 10;
             $krajUnije = new Cvor(false, $prosliX, $prosliY); // sredi lijevi dio unije, da epsilon-prelazi na kraj unije; zatim isto za desni dio
-            $pocetakUnije = new Cvor(false, $x + 10, $x - 15);
+            $pocetakUnije = new Cvor(false, $x + 10, $y - 15);
             $nka->dodajCvor($imePocetka, $pocetakUnije, []);
             $nka->dodajCvor($imeKraja, $krajUnije, []);
             $nka->dodajPrijelaze($imePocetka, [[$inicijalnoStanje, 'ε']]);
@@ -144,9 +146,9 @@ class NKA {
             // također može skalirati sve ako ne stane u neku zadanu površinu, a mi ovdje još moramo riješiti sudaranje čvorova...
             $ime = NKA::generirajImeCvora();
             $nka->dodajCvor($ime, $desno, []);
-            //$nka->dodajPrijelaze($inicijalnoStanje, [[$ime, 'ε']]);
-            $nka->dodajPrijelaze($imePocetka, [[$ime, 'ε']]);
-            [$nka, $x, $y, $zadnjeStanje] = NKA::izRegexa($regex->desnoDijete, $nka, $ime, $prosliX + 10, $prosliY - 15); // rekurzija udesno
+            //$nka->dodajPrijelaze($imePocetka, [[$ime, 'ε']]);
+            [$nka, $x, $y, $prvoStanje, $zadnjeStanje] = NKA::izRegexa($regex->desnoDijete, $nka, $ime, $prosliX + 10, $prosliY - 15); // rekurzija udesno
+            $nka->dodajPrijelaze($imePocetka, [[$prvoStanje, 'ε']]);
             $nka->dodajPrijelaze($zadnjeStanje, [[$imeKraja, 'ε']]);
 
             $x = $prosliX; $y = $prosliY;
