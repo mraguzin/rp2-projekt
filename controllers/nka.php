@@ -34,13 +34,14 @@ class NKA {
     private $id; // ovo mora biti jedinstveni ID ovog automata i ekvivalentnog mu regexa; treba biti 6 random generiranih hex znamenki koje već ne postoje
     // u bazi, što provjeravamo iz posebne ID tablice
     private static $brojStanja = 0;
+    public const EPSILON_PRIJELAZ = 1;
 
     public static function izJSON($json) { // očekuje JSON serijalizirani format ove klase; ideja je da klijentski JS kod serijalizira nacrtani graf s
         // canvasa u JSON i asinkrono pošalje ovoj metodi na serveru koja potom klijentu vraća odgovarajući JSON regexa tj. samo njegov text
         $obj = json_decode($json, true); // TODO: treba li tu posebno loviti bilo što loše što se može dogoditi ako nismo dobili važeći json ili
         // pustiti da se JS nosi sa statusnim kodom odgovora odnosno tipom odgovora iz kojeg se može deducirati greška?
         $nka = new NKA();
-        $nka->id = $obj['id']; // BITNO: ako je id null, to znači da korisnik nije ulogiran i server mu nije dodijelio jedinstveni id sesije, pa
+        $nka->id = $obj['id']; // BITNO: ako je id null, to znači da korisnik nije ulogiran i server mu nije dodijelio jedinstveni id automata, pa
         // sada neće biti moguće ni spremanje automata/regexa u bazu
         $nka->pocetniCvor = $obj['pocetniCvor'];
         foreach ($obj['cvorovi'] as $ime => $cvor) {
@@ -65,16 +66,16 @@ class NKA {
                 [$nka, $x0, $y0, $prvoStanje, $zadnjeStanje] = NKA::izRegexa($regex, $nka, $inicijalnoStanje, $x0, $y0);
                 $ime = NKA::generirajImeCvora();
                 $nka->dodajCvor($ime, $sljedeceStanje, []);
-                $nka->dodajPrijelaze($zadnjeStanje, [[$sljedeceStanje, 'ε']]);
+                $nka->dodajPrijelaze($zadnjeStanje, [[$sljedeceStanje, NKA::EPSILON_PRIJELAZ]]);
                 $inicijalnoStanje = $sljedeceStanje;
             case Regex::GRUPA_ZVIJEZDA: // namjerni fallthrough!
                 [$nka, $x0, $y0, $prvoStanje, $zadnjeStanje] = NKA::izRegexa($regex, $nka, $inicijalnoStanje, $x0, $y0);
-                $nka->dodajPrijelaze($prvoStanje, [[$zadnjeStanje, 'ε']]);
-                $nka->dodajPrijelaze($zadnjeStanje, [[$prvoStanje, 'ε']]);
+                $nka->dodajPrijelaze($prvoStanje, [[$zadnjeStanje, NKA::EPSILON_PRIJELAZ]]);
+                $nka->dodajPrijelaze($zadnjeStanje, [[$prvoStanje, NKA::EPSILON_PRIJELAZ]]);
                 return [$x0, $y0, $prvoStanje, $zadnjeStanje];
             case Regex::GRUPA_UPITNIK:
                 [$nka, $x0, $y0, $prvoStanje, $zadnjeStanje] = NKA::izRegexa($regex, $nka, $inicijalnoStanje, $x0, $y0);
-                $nka->dodajPrijelaze($prvoStanje, [[$zadnjeStanje, 'ε']]);
+                $nka->dodajPrijelaze($prvoStanje, [[$zadnjeStanje, NKA::EPSILON_PRIJELAZ]]);
                 return [$x0, $y0, $prvoStanje, $zadnjeStanje];
             case Regex::GRUPA:
                 [$nka, $x0, $y0, $prvoStanje, $zadnjeStanje] = NKA::izRegexa($regex, $nka, $inicijalnoStanje, $x0, $y0);
@@ -98,15 +99,13 @@ class NKA {
             $zavrsno = new Cvor(false, $x + 10, $y);
             $ime = NKA::generirajImeCvora();
             $nka->dodajCvor($ime, $zavrsno, []);
-            $oznaka = $regex->korijen === Regex::ZNAK ? $regex->znak : 'Σ';
-            $nka->dodajPrijelaze($inicijalnoStanje, [$ime, $oznaka]);
+            if ($regex->korijen === Regex::ZNAK)
+                $nka->dodajPrijelaze($inicijalnoStanje, [[$ime, $regex->znak]]);
+            else
+                $nka->dodajPrijelaze($inicijalnoStanje, [[$ime, Regex::SVI_ZNAKOVI]]); // pazi, ovdje posebno (int-om) označavamo da je riječ o proizvoljnom
+                // znaku abecede, pa se frontend mora korektno nositi s detekcijom kada je tu string (tj. znak) a kada int
 
             return [$nka, $x + 10, $y, $inicijalnoStanje, $ime];
-        }
-
-        if (empty($regex->lijevaDjeca)) {
-            $nka->uciniZavrsnim($inicijalnoStanje);
-            return [$nka, $x, $y, $inicijalnoStanje, $inicijalnoStanje];
         }
         
         if ($regex->korijen === Regex::UNIJA) {
@@ -126,7 +125,7 @@ class NKA {
                 //$pocetakGrupe = new Cvor(false, $x + 10, $y);
                 [$x, $y, $prvoStanje, $prosloStanje] = NKA::kleene($prosloStanje, $lijevoDijete, $nka, $x + 10, $y);
                 if ($prosloStanje !== $prvoStanje)
-                    $nka->dodajPrijelaze($prosloStanje, [[$prvoStanje, 'ε']]); // TODO: minimizacija: moguće je eliminirati ovo stanje (prvoStanje)
+                    $nka->dodajPrijelaze($prosloStanje, [[$prvoStanje, NKA::EPSILON_PRIJELAZ]]); // TODO: minimizacija: moguće je eliminirati ovo stanje
                 // jer prosloStanje može obaviti sve te iste prijelaze, samo premjesti i izbriši
             }
         }
@@ -140,16 +139,16 @@ class NKA {
             $pocetakUnije = new Cvor(false, $x + 10, $y - 15);
             $nka->dodajCvor($imePocetka, $pocetakUnije, []);
             $nka->dodajCvor($imeKraja, $krajUnije, []);
-            $nka->dodajPrijelaze($imePocetka, [[$inicijalnoStanje, 'ε']]);
-            $nka->dodajPrijelaze($prosloStanje, [[$imeKraja, 'ε']]);
+            $nka->dodajPrijelaze($imePocetka, [[$inicijalnoStanje, NKA::EPSILON_PRIJELAZ]]);
+            $nka->dodajPrijelaze($prosloStanje, [[$imeKraja, NKA::EPSILON_PRIJELAZ]]);
             $desno = new Cvor(false, $x + 10, $y - 15); // TODO: na kraju treba centrirati crtež jer neki elementi mogu ispasti van granica; frontend
             // također može skalirati sve ako ne stane u neku zadanu površinu, a mi ovdje još moramo riješiti sudaranje čvorova...
             $ime = NKA::generirajImeCvora();
             $nka->dodajCvor($ime, $desno, []);
             //$nka->dodajPrijelaze($imePocetka, [[$ime, 'ε']]);
             [$nka, $x, $y, $prvoStanje, $zadnjeStanje] = NKA::izRegexa($regex->desnoDijete, $nka, $ime, $prosliX + 10, $prosliY - 15); // rekurzija udesno
-            $nka->dodajPrijelaze($imePocetka, [[$prvoStanje, 'ε']]);
-            $nka->dodajPrijelaze($zadnjeStanje, [[$imeKraja, 'ε']]);
+            $nka->dodajPrijelaze($imePocetka, [[$prvoStanje, NKA::EPSILON_PRIJELAZ]]);
+            $nka->dodajPrijelaze($zadnjeStanje, [[$imeKraja, NKA::EPSILON_PRIJELAZ]]);
 
             $x = $prosliX; $y = $prosliY;
             $prosloStanje = $imeKraja;

@@ -73,7 +73,7 @@ class Regex {
 
             default:
             $this->pomak--;
-            if ($this->korijen == Regex::ZNAK)
+            if ($this->korijen === Regex::ZNAK)
                 $this->tipGrupe = Regex::NEMA_GRUPE;
             else
                 $this->tipGrupe = Regex::GRUPA;
@@ -109,7 +109,7 @@ class Regex {
                 return;
             } else {
                 if ($znak === '.')
-                    $dijete = Regex::kaoZnak(Regex::SVI_ZNAKOVI, '.');
+                    $dijete = Regex::kaoZnak(Regex::SVI_ZNAKOVI, 'Σ');
                 else if ($znak === '\\') {
                     $sljedeci = $this->dajZnak();
                     if ($sljedeci === -1)
