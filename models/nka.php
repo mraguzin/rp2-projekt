@@ -34,7 +34,9 @@ class NKA {
     private $id; // ovo mora biti jedinstveni ID ovog automata i ekvivalentnog mu regexa; treba biti 6 random generiranih hex znamenki koje već ne postoje
     // u bazi, što provjeravamo iz posebne ID tablice
     private static $brojStanja = 0;
+
     public const EPSILON_PRIJELAZ = 1;
+    public const SIGMA_PRIJELAZ = 2; // prijelaz za bilo koji znak abecede (.)
 
     public static function izJSON($json) { // očekuje JSON serijalizirani format ove klase; ideja je da klijentski JS kod serijalizira nacrtani graf s
         // canvasa u JSON i asinkrono pošalje ovoj metodi na serveru koja potom klijentu vraća odgovarajući JSON regexa tj. samo njegov text
@@ -102,7 +104,7 @@ class NKA {
             if ($regex->korijen === Regex::ZNAK)
                 $nka->dodajPrijelaze($inicijalnoStanje, [[$ime, $regex->znak]]);
             else
-                $nka->dodajPrijelaze($inicijalnoStanje, [[$ime, Regex::SVI_ZNAKOVI]]); // pazi, ovdje posebno (int-om) označavamo da je riječ o proizvoljnom
+                $nka->dodajPrijelaze($inicijalnoStanje, [[$ime, NKA::SIGMA_PRIJELAZ]]); // pazi, ovdje posebno (int-om) označavamo da je riječ o proizvoljnom
                 // znaku abecede, pa se frontend mora korektno nositi s detekcijom kada je tu string (tj. znak) a kada int
 
             return [$nka, $x + 10, $y, $inicijalnoStanje, $ime];
