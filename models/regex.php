@@ -3,7 +3,6 @@ class Regex {
     public $oznaka;
     public $lijevo, $desno;
 
-    private $ulaz; // ulazni regex string, razdijeljen u pojedinačne Unicode znakove
     private $id; // jedinstveni ID ovog regexa i ekvivalentnog mu automata
 
     public function __get($name)
@@ -42,10 +41,15 @@ class Regex {
     public const P_ZNAK_PLUS            = 9; // kao gore, samo što sada nema T ispred tj. lijevo dijete je samo jedan znak
     public const P_ZNAK_ZVIJEZDA        = 10;
     public const P_ZNAK_UPITNIK         = 11;
+    public const P_NIZ_GRUPA            = 12; // T(S1)S1 itd. sve varijante zagrada—ovo je nužno radi mogućnosti nastavljanja niza udesno zagradom!
+    public const P_NIZ_GRUPA_PLUS       = 13;
+    public const P_NIZ_GRUPA_ZVIJEZDA   = 14;
+    public const P_NIZ_GRUPA_UPITNIK    = 15;
 
     public static function fromString($regex) {
         $ulaz = mb_str_split($regex);
-
+        $tokeni = self::lex($ulaz);
+        return self::parsiraj($tokeni);
     }
 
     private static function noviToken($tip, $vrijednost = null) {
@@ -116,9 +120,6 @@ class Regex {
                 case '?':
                     throw new RuntimeException("Ilegalno pojavljivanje $znak u regexu");
                     break;
-
-                case '\\':
-                    $sljedeci = $ulaz[++$j];
 
                 default:
                 if ($znak === '.')
@@ -285,7 +286,41 @@ class Regex {
             $podstablo = self::S1($tokeni);
 
             return self::novoStablo(self::P_PREFIX_ZNAK_UPITNIK, [$niz, $znak], $podstablo);
-        } else if (self::ocekuj($tokeni, self::T_NIZ)) {
+
+        } else if (self::ocekuj($tokeni, [self::T_NIZ, self::T_OTV])) {
+            $niz = self::vrijednostTokena($tokeni[0]);
+            $tokeni = array_slice($tokeni, 2);
+            $stablo1 = self::S1($tokeni);
+            self::ocekuj($tokeni, self::T_ZAT, true);
+            $stablo2 = self::S1($tokeni);
+
+            return self::novoStablo(self::P_NIZ_GRUPA, [$niz, $stablo1], $stablo2);
+        } else if (self::ocekuj($tokeni, [self::T_NIZ, self::T_OTV_ZVIJEZDA])) {
+            $niz = self::vrijednostTokena($tokeni[0]);
+            $tokeni = array_slice($tokeni, 2);
+            $stablo1 = self::S1($tokeni);
+            self::ocekuj($tokeni, self::T_ZAT_ZVIJEZDA, true);
+            $stablo2 = self::S1($tokeni);
+
+            return self::novoStablo(self::P_NIZ_GRUPA_ZVIJEZDA, [$niz, $stablo1], $stablo2);
+        } else if (self::ocekuj($tokeni, [self::T_NIZ, self::T_OTV_PLUS])) {
+            $niz = self::vrijednostTokena($tokeni[0]);
+            $tokeni = array_slice($tokeni, 2);
+            $stablo1 = self::S1($tokeni);
+            self::ocekuj($tokeni, self::T_ZAT_PLUS, true);
+            $stablo2 = self::S1($tokeni);
+
+            return self::novoStablo(self::P_NIZ_GRUPA_PLUS, [$niz, $stablo1], $stablo2);
+        } else if (self::ocekuj($tokeni, [self::T_NIZ, self::T_OTV_UPITNIK])) {
+            $niz = self::vrijednostTokena($tokeni[0]);
+            $tokeni = array_slice($tokeni, 2);
+            $stablo1 = self::S1($tokeni);
+            self::ocekuj($tokeni, self::T_ZAT_UPITNIK, true);
+            $stablo2 = self::S1($tokeni);
+
+            return self::novoStablo(self::P_NIZ_GRUPA_UPITNIK, [$niz, $stablo1], $stablo2);
+        } else if (self::ocekuj($tokeni, self::T_NIZ)) { //TODO: možemo imati granu za epsilon i uniju kao validne za return null, ali ostali onda
+            // mogu prijaviti informativniju grešku o parsiranju oko toga što ne valja
             $tokeni = array_slice($tokeni, 1);
 
             return self::novoStablo(self::P_NIZ, self::vrijednostTokena($tokeni[0]), null);
