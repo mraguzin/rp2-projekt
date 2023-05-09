@@ -1,127 +1,297 @@
 <?php
 class Regex {
-    public $korijen = Regex::KONKATENACIJA;
-    public $znak;
-    public $lijevaDjeca = [];
-    public $desnoDijete;
-    public $tipGrupe = Regex::NEMA_GRUPE; // ovo označava je li trenutni (pod)regex jedan dio većeg grupnog izraza
-    // (tj. onog koji je u zagradama) i ako jest, je li potrebno
-    // tražiti posljednjeg člana grupe kako bismo saznali je li grupa pod zvijezdom, upitnikom itd.
-    //private $djeca = [];
-    private static $pomak = 0;
+    public $oznaka;
+    public $lijevo, $desno;
+
     private $ulaz; // ulazni regex string, razdijeljen u pojedinačne Unicode znakove
     private $id; // jedinstveni ID ovog regexa i ekvivalentnog mu automata
 
-    public const ZNAK          = 0; // znak abecede
-
-    public const GRUPA          = 4; // čisto unutar zagrada (donje tri varijacije znače da je grupa pod tim znakom)
-    public const GRUPA_ZVIJEZDA = 5;
-    public const GRUPA_PLUS     = 6;
-    public const GRUPA_UPITNIK  = 7;
-    public const NEMA_GRUPE     = 8;
-    public const GRUPA_POCETNI  = 9; // sve što nije jedan od gornjih završnih klasifikatora grupe, dakle još ne znamo i moramo dalje ići na idući regex dio
-
-    public const UNIJA         = 10;
-    public const SVI_ZNAKOVI   = 11;
-    public const KONKATENACIJA = 12;
-
-    private function __construct($ulaz, $uZagradi=false)
+    public function __get($name)
     {
-        $this->ulaz = $ulaz;
-        if (count($ulaz) !== 0)
-            $this->parsiraj($uZagradi);
+        if ($name === 'ispod')
+            return $this->lijevo;
+        else
+            return $this->$name;
     }
 
-    public static function izTeksta($tekst) {
-        Regex::$pomak = 0;
-        return new Regex(mb_str_split($tekst));
+    public const T_UNIJA          = 0;
+    public const T_OTV            = 1;
+    public const T_ZAT            = 2;
+    public const T_OTV_PLUS       = 3;
+    public const T_ZAT_PLUS       = 4;
+    public const T_OTV_ZVIJEZDA   = 5;
+    public const T_ZAT_ZVIJEZDA   = 6;
+    public const T_OTV_UPITNIK    = 7;
+    public const T_ZAT_UPITNIK    = 8;
+    public const T_NIZ            = 9; // niz znakova (bar 1)
+    public const T_ZNAK_PLUS      = 10;
+    public const T_ZNAK_ZVIJEZDA  = 11;
+    public const T_ZNAK_UPITNIK   = 12;
+    public const EPSILON          = 13;
+    public const SVI_ZNAKOVI      = 14;
+
+    public const P_UNIJA                = 0;
+    public const P_GRUPA                = 1;
+    public const P_GRUPA_PLUS           = 2;
+    public const P_GRUPA_ZVIJEZDA       = 3;
+    public const P_GRUPA_UPITNIK        = 4;
+    public const P_NIZ                  = 5;
+    public const P_PREFIX_ZNAK_PLUS     = 6; // lijevo dijete ima oznaku koja je jednaka paru vrijednosti [T,Z] za TZ*/TZ+/TZ?
+    public const P_PREFIX_ZNAK_ZVIJEZDA = 7;
+    public const P_PREFIX_ZNAK_UPITNIK  = 8;
+    public const P_ZNAK_PLUS            = 9; // kao gore, samo što sada nema T ispred tj. lijevo dijete je samo jedan znak
+    public const P_ZNAK_ZVIJEZDA        = 10;
+    public const P_ZNAK_UPITNIK         = 11;
+
+    public static function fromString($regex) {
+        $ulaz = mb_str_split($regex);
+
     }
 
-    public static function kaoZnak($tip, $znak) {
-        $regex = new Regex([]);
-        $regex->korijen = $tip;
-        $regex->znak = $znak;
-
-        return $regex;
+    private static function noviToken($tip, $vrijednost = null) {
+        return [$tip, $vrijednost];
     }
 
-    private function dajZnak($peek=false) {
-        if ($this->pomak === count($this->ulaz))
-            return -1;
-        else {
-            if ($peek)
-                return $this->ulaz[$this->pomak];
-            else
-                return $this->ulaz[$this->pomak++];
-        }
+    private static function tipTokena($token) {
+        return $token[0];
     }
 
-    private function odrediTipGrupe()
-    {
-        switch ($this->dajZnak()) {
-            case '*':
-                $this->tipGrupe = Regex::GRUPA_ZVIJEZDA;
-                break;
-
-            case '+':
-                $this->tipGrupe = Regex::GRUPA_PLUS;
-                break;
-
-            case '?':
-                $this->tipGrupe = Regex::GRUPA_UPITNIK;
-                break;
-
-            default:
-            $this->pomak--;
-            if ($this->korijen === Regex::ZNAK)
-                $this->tipGrupe = Regex::NEMA_GRUPE;
-            else
-                $this->tipGrupe = Regex::GRUPA;
-        }
+    private static function vrijednostTokena($token) {
+        return $token[1];
     }
 
-    private function parsiraj($uZagradi = false)
-    {
-        if ($uZagradi)
-            $this->tipGrupe = Regex::GRUPA_POCETNI;
+    private static function lex($ulaz) {
+        $i = 0;
+        $tokeni = [];
+        $stog = new SplStack();
+        $ulaz[] = self::EPSILON;
+        $trenutniNiz = [];
 
-        while (true) {
-            $znak = $this->dajZnak();
+        for ($j = 0; $j < count($ulaz); ++$j) {
+            $znak = $ulaz[$j];
+            if (array_search($znak, explode(' ', '( ) * + ? |')) !== false && !empty($trenutniNiz)) {
+                $tokeni[] = self::noviToken(self::T_NIZ, $trenutniNiz);
+                $trenutniNiz = [];
+                ++$i;
+            }
 
-            if ($znak === '(') {
-                $this->lijevaDjeca[] = new Regex($this->ulaz, true);
-            } else if ($znak === ')') {
-                if (!$uZagradi)
-                    throw new DomainException('Uneseni tekst nije važeći regularan izraz jer zatvarate neotvorenu zagradu!');
+            switch ($znak) {
+                case '(':
+                    $stog->push($i++);
+                    $tokeni[] = self::noviToken(self::T_OTV);
+                    break;
 
-                $this->odrediTipGrupe();
-                return;
-            } else if ($znak === '|') {
-                $this->korijen = Regex::UNIJA;
-                $this->desnoDijete = new Regex($this->ulaz, $this->pomak, $uZagradi);
-                $this->tipGrupe = $this->desnoDijete->tipGrupe; // propagiraj tip grupe jer ga želimo imati na samom početku, radi izbjegavanja skeniranja
-            } else if ($znak === '*' || $znak === '+' || $znak === '?') { // trebamo podržavati prazne */+/? ako želimo moći dobiti ε u jeziku u nekim situacijama
-                continue;
-            } else if ($znak === -1) {
-                if ($uZagradi)
-                    throw new DomainException('Kraj teksta bez zatvaranja otvorene zagrade!');
+                case ')':
+                    $otvarajuca = $stog->pop();
+                    $sljedeci = $ulaz[$j + 1];
+                    if ($sljedeci === '*') {
+                        ++$j;
+                        $tokeni[$otvarajuca] = self::noviToken(self::T_OTV_ZVIJEZDA);
+                        $tokeni[] = self::noviToken(self::T_ZAT_ZVIJEZDA);
+                    } else if ($sljedeci === '+') {
+                        ++$j;
+                        $tokeni[$otvarajuca] = self::noviToken(self::T_OTV_PLUS);
+                        $tokeni[] = self::noviToken(self::T_ZAT_PLUS);
+                    } else if ($sljedeci === '?') {
+                        ++$j;
+                        $tokeni[$otvarajuca] = self::noviToken(self::T_OTV_UPITNIK);
+                        $tokeni[] = self::noviToken(self::T_ZAT_UPITNIK);
+                    } else {
+                        $tokeni[] = self::noviToken(self::T_ZAT);
+                    }
 
-                return;
-            } else {
+                    ++$i;
+                    break;
+
+                case '|':
+                    $tokeni[] = self::noviToken(self::T_UNIJA);
+                    ++$i;
+                    break;
+
+                case self::EPSILON:
+                    break;
+
+                case '*':
+                case '+':
+                case '?':
+                    throw new RuntimeException("Ilegalno pojavljivanje $znak u regexu");
+                    break;
+
+                case '\\':
+                    $sljedeci = $ulaz[++$j];
+
+                default:
                 if ($znak === '.')
-                    $dijete = Regex::kaoZnak(Regex::SVI_ZNAKOVI, 'Σ');
-                else if ($znak === '\\') {
-                    $sljedeci = $this->dajZnak();
-                    if ($sljedeci === -1)
-                        throw new DomainException('Kraj teksta prije specifikacije doslovnog znaka (nakon \\)!');
-                    $dijete = Regex::kaoZnak(Regex::ZNAK, $sljedeci);
-                } else
-                    $dijete = Regex::kaoZnak(Regex::ZNAK, $znak);
+                    $vrijednost = self::SVI_ZNAKOVI;
+                else if ($znak === '\\')
+                    $vrijednost = $ulaz[++$j];
+                else
+                    $vrijednost = $znak;
+                
+                if ($vrijednost === self::EPSILON)
+                    throw new RuntimeException('Neočekivan kraj niza nakon \\');
 
-                $dijete->odrediTipGrupe();
-                $this->lijevaDjeca[] = $dijete;
+                $sljedeci = $ulaz[$j + 1];
+                if ($sljedeci === '*' || $sljedeci === '+' || $sljedeci === '?') {
+                    if (!empty($trenutniNiz)) {
+                        $tokeni[] = self::noviToken(self::T_NIZ, $trenutniNiz);
+                        $trenutniNiz = [];
+                        ++$i;
+                    }
+                }
+
+                if ($sljedeci === '*') {
+                    $tokeni[] = self::noviToken(self::T_ZNAK_ZVIJEZDA, $vrijednost);
+                    ++$i;
+                } else if ($sljedeci === '+') {
+                    $tokeni[] = self::noviToken(self::T_ZNAK_PLUS, $vrijednost);
+                    ++$i;
+                } else if ($sljedeci === '?') {
+                    $tokeni[] = self::noviToken(self::T_ZNAK_UPITNIK, $vrijednost);
+                    ++$i;
+                } else {
+                    $trenutniNiz[] = $vrijednost;
+                }               
+
             }
         }
+
+        if (!empty($trenutniNiz))
+            $tokeni[] = self::noviToken(self::T_NIZ, $trenutniNiz);
+        $tokeni[] = self::noviToken(self::EPSILON);
+        
+        return $tokeni;
+    }
+
+    private static function ocekuj(&$tokeni, $tip, $nuzno = false) {
+        if (!is_array($tip)) {
+            $i = 1;
+            $test = (self::tipTokena($tokeni[0]) === $tip);
+        }
+        else {
+            $test = true;
+            $i = 0;
+            foreach ($tip as $t) {
+                $test = $test && (self::tipTokena($tokeni[$i++]) === $t);
+            }
+        }
+
+        if ($nuzno) {
+            if (!$test)
+                throw new RuntimeException('Očekivan token tipa ' . $tip);
+            $tokeni = array_slice($tokeni, $i);
+        }
+            
+        return $test;
+    }
+
+    public static function parsiraj($tokeni) {
+        if (empty($tokeni))
+            throw new RuntimeException('Nemam što parsirati');
+
+        $stablo = self::S($tokeni);
+        if (empty($tokeni) || $tokeni[0] === self::EPSILON)
+            return $stablo;
+        else
+            throw new RuntimeException('Ulaz nije važeći regex');
+    }
+
+    private static function novoStablo($oznaka, $lijevo, $desno) {
+        $stablo = new Regex();
+        $stablo->oznaka = $oznaka;
+        $stablo->lijevo = $lijevo;
+        $stablo->desno = $desno;
+
+        return $stablo;
+    }
+
+    private static function S(&$tokeni) {
+        $stablo1 = self::S1($tokeni);
+        if (self::ocekuj($tokeni, self::T_UNIJA)) {
+            $tokeni = array_slice($tokeni, 1);
+            $stablo2 = self::S($tokeni);
+            
+            return self::novoStablo(self::P_UNIJA, $stablo1, $stablo2);
+        } else {
+            return $stablo1;
+        }
+    }
+
+    private static function S1(&$tokeni) {
+        if (self::ocekuj($tokeni, self::T_OTV)) {
+            $tokeni = array_slice($tokeni, 1);
+            $stablo1 = self::S1($tokeni);
+            self::ocekuj($tokeni, self::T_ZAT, true);
+            $stablo2 = self::S1($tokeni);
+            
+            return self::novoStablo(self::P_GRUPA, $stablo1, $stablo2);
+        } else if (self::ocekuj($tokeni, self::T_OTV_ZVIJEZDA)) {
+            $tokeni = array_slice($tokeni, 1);
+            $stablo1 = self::S1($tokeni);
+            self::ocekuj($tokeni, self::T_ZAT_ZVIJEZDA, true);
+            $stablo2 = self::S1($tokeni);
+            
+            return self::novoStablo(self::P_GRUPA_ZVIJEZDA, $stablo1, $stablo2);
+        } else if (self::ocekuj($tokeni, self::T_OTV_PLUS)) {
+            $tokeni = array_slice($tokeni, 1);
+            $stablo1 = self::S1($tokeni);
+            self::ocekuj($tokeni, self::T_ZAT_PLUS, true);
+            $stablo2 = self::S1($tokeni);
+            
+            return self::novoStablo(self::P_GRUPA_PLUS, $stablo1, $stablo2);
+        } else if (self::ocekuj($tokeni, self::T_OTV_UPITNIK)) {
+            $tokeni = array_slice($tokeni, 1);
+            $stablo1 = self::S1($tokeni);
+            self::ocekuj($tokeni, self::T_ZAT_UPITNIK, true);
+            $stablo2 = self::S1($tokeni);
+            
+            return self::novoStablo(self::P_GRUPA_UPITNIK, $stablo1, $stablo2);
+        } else if (self::ocekuj($tokeni, self::T_ZNAK_ZVIJEZDA)) {
+            $znak = self::vrijednostTokena($tokeni[0]);
+            $tokeni = array_slice($tokeni, 1);
+            $podstablo = self::S1($tokeni);
+
+            return self::novoStablo(self::P_ZNAK_ZVIJEZDA, $znak, $podstablo);
+        } else if (self::ocekuj($tokeni, self::T_ZNAK_PLUS)) {
+            $znak = self::vrijednostTokena($tokeni[0]);
+            $tokeni = array_slice($tokeni, 1);
+            $podstablo = self::S1($tokeni);
+
+            return self::novoStablo(self::P_ZNAK_PLUS, $znak, $podstablo);
+        } else if (self::ocekuj($tokeni, self::T_ZNAK_UPITNIK)) {
+            $znak = self::vrijednostTokena($tokeni[0]);
+            $tokeni = array_slice($tokeni, 1);
+            $podstablo = self::S1($tokeni);
+
+            return self::novoStablo(self::P_ZNAK_UPITNIK, $znak, $podstablo);
+        } else if (self::ocekuj($tokeni, [self::T_NIZ, self::T_ZNAK_ZVIJEZDA])) {
+            $niz = self::vrijednostTokena($tokeni[0]);
+            $znak = self::vrijednostTokena($tokeni[1]);
+            $tokeni = array_slice($tokeni, 2);
+            $podstablo = self::S1($tokeni);
+
+            return self::novoStablo(self::P_PREFIX_ZNAK_ZVIJEZDA, [$niz, $znak], $podstablo);
+        } else if (self::ocekuj($tokeni, [self::T_NIZ, self::T_ZNAK_PLUS])) {
+            $niz = self::vrijednostTokena($tokeni[0]);
+            $znak = self::vrijednostTokena($tokeni[1]);
+            $tokeni = array_slice($tokeni, 2);
+            $podstablo = self::S1($tokeni);
+
+            return self::novoStablo(self::P_PREFIX_ZNAK_PLUS, [$niz, $znak], $podstablo);
+        } else if (self::ocekuj($tokeni, [self::T_NIZ, self::T_ZNAK_UPITNIK])) {
+            $niz = self::vrijednostTokena($tokeni[0]);
+            $znak = self::vrijednostTokena($tokeni[1]);
+            $tokeni = array_slice($tokeni, 2);
+            $podstablo = self::S1($tokeni);
+
+            return self::novoStablo(self::P_PREFIX_ZNAK_UPITNIK, [$niz, $znak], $podstablo);
+        } else if (self::ocekuj($tokeni, self::T_NIZ)) {
+            $tokeni = array_slice($tokeni, 1);
+
+            return self::novoStablo(self::P_NIZ, self::vrijednostTokena($tokeni[0]), null);
+        }
+
+        return null;
     }
 }
 ?>
