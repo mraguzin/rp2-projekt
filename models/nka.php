@@ -37,7 +37,6 @@ class NKA {
     private $zavrsniCvorovi = [];
 
     public const EPSILON_PRIJELAZ = 1;
-    public const SIGMA_PRIJELAZ = 2; // prijelaz za bilo koji znak abecede (.)
 
     public static function izJSON($json) { // očekuje JSON serijalizirani format ove klase; ideja je da klijentski JS kod serijalizira nacrtani graf s
         // canvasa u JSON i asinkrono pošalje ovoj metodi na serveru koja potom klijentu vraća odgovarajući JSON regexa tj. samo njegov text
@@ -201,11 +200,6 @@ class NKA {
         } else if ($regex->oznaka === Regex::P_NIZ) {
             return self::izNizaZnakova($regex);
         } else if ($regex->oznaka === Regex::P_NIZ_GRUPA) {
-            $lijeviAutomat = self::izNizaZnakova($regex->lijevo);
-            $desniAutomat = self::izRegexaRekurzivno($regex->desno);
-
-            return self::konkatenirajAutomate($lijeviAutomat, $desniAutomat);
-        } else if ($regex->oznaka === Regex::P_PREFIX_ZNAK) {
             $lijeviAutomat = self::izNizaZnakova($regex->lijevo);
             $desniAutomat = self::izRegexaRekurzivno($regex->desno);
 

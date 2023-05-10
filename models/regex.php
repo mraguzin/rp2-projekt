@@ -35,7 +35,6 @@ class Regex {
     public const P_GRUPA_ZVIJEZDA       = 3;
     public const P_GRUPA_UPITNIK        = 4;
     public const P_NIZ                  = 5;
-    public const P_PREFIX_ZNAK          = 6; // lijevo dijete ima oznaku koja je jednaka paru vrijednosti [T,Z] za TZ*/TZ+/TZ?
     public const P_NIZ_GRUPA            = 12; // T(S1)S1 itd. sve varijante zagrada—ovo je nužno radi mogućnosti nastavljanja niza udesno zagradom!
 
     public static function fromString($regex) {
@@ -264,7 +263,7 @@ class Regex {
             $podstablo = self::S1($tokeni);
             $stablo = self::novoStablo(self::P_GRUPA_ZVIJEZDA, self::novoStablo(self::T_NIZ, [$znak], null), $podstablo);
 
-            return self::novoStablo(self::P_PREFIX_ZNAK, $niz, $stablo);
+            return self::novoStablo(self::P_NIZ_GRUPA, $niz, $stablo);
         } else if (self::ocekuj($tokeni, [self::T_NIZ, self::T_ZNAK_PLUS])) {
             $niz = self::vrijednostTokena($tokeni[0]);
             $znak = self::vrijednostTokena($tokeni[1]);
@@ -272,7 +271,7 @@ class Regex {
             $podstablo = self::S1($tokeni);
             $stablo = self::novoStablo(self::P_GRUPA_PLUS, self::novoStablo(self::T_NIZ, [$znak], null), $podstablo);
 
-            return self::novoStablo(self::P_PREFIX_ZNAK, $niz, $stablo);
+            return self::novoStablo(self::P_NIZ_GRUPA, $niz, $stablo);
         } else if (self::ocekuj($tokeni, [self::T_NIZ, self::T_ZNAK_UPITNIK])) {
             $niz = self::vrijednostTokena($tokeni[0]);
             $znak = self::vrijednostTokena($tokeni[1]);
@@ -280,7 +279,7 @@ class Regex {
             $podstablo = self::S1($tokeni);
             $stablo = self::novoStablo(self::P_GRUPA_UPITNIK, self::novoStablo(self::T_NIZ, [$znak], null), $podstablo);
 
-            return self::novoStablo(self::P_PREFIX_ZNAK, $niz, $stablo);
+            return self::novoStablo(self::P_NIZ_GRUPA, $niz, $stablo);
 
         } else if (self::ocekuj($tokeni, [self::T_NIZ, self::T_OTV])) {
             $niz = self::vrijednostTokena($tokeni[0]);
