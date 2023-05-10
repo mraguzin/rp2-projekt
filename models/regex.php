@@ -13,21 +13,21 @@ class Regex {
             return $this->$name;
     }
 
-    public const T_UNIJA          = 0;
-    public const T_OTV            = 1;
-    public const T_ZAT            = 2;
-    public const T_OTV_PLUS       = 3;
-    public const T_ZAT_PLUS       = 4;
-    public const T_OTV_ZVIJEZDA   = 5;
-    public const T_ZAT_ZVIJEZDA   = 6;
-    public const T_OTV_UPITNIK    = 7;
-    public const T_ZAT_UPITNIK    = 8;
-    public const T_NIZ            = 9; // niz znakova (bar 1)
-    public const T_ZNAK_PLUS      = 10;
-    public const T_ZNAK_ZVIJEZDA  = 11;
-    public const T_ZNAK_UPITNIK   = 12;
-    public const EPSILON          = 13;
-    public const SVI_ZNAKOVI      = 14;
+    private const T_UNIJA          = 0;
+    private const T_OTV            = 1;
+    private const T_ZAT            = 2;
+    private const T_OTV_PLUS       = 3;
+    private const T_ZAT_PLUS       = 4;
+    private const T_OTV_ZVIJEZDA   = 5;
+    private const T_ZAT_ZVIJEZDA   = 6;
+    private const T_OTV_UPITNIK    = 7;
+    private const T_ZAT_UPITNIK    = 8;
+    private const T_NIZ            = 9; // niz znakova T (bar 1)
+    private const T_ZNAK_PLUS      = 10;
+    private const T_ZNAK_ZVIJEZDA  = 11;
+    private const T_ZNAK_UPITNIK   = 12;
+    private const EPSILON          = 13;
+    private const SVI_ZNAKOVI      = 14;
 
     public const P_UNIJA                = 0;
     public const P_GRUPA                = 1;
@@ -48,7 +48,7 @@ class Regex {
 
     public static function fromString($regex) {
         $ulaz = mb_str_split($regex);
-        $tokeni = self::lex($ulaz);
+        $tokeni = self::lex($ulaz); // TODO: dodaj minimizaciju stabala za sljedeća podstabla: ((...)*)*, ((...)), (|...|)
         return self::parsiraj($tokeni);
     }
 
@@ -293,32 +293,36 @@ class Regex {
             $stablo1 = self::S1($tokeni);
             self::ocekuj($tokeni, self::T_ZAT, true);
             $stablo2 = self::S1($tokeni);
+            $stablo = self::novoStablo(self::P_NIZ_GRUPA, $stablo1, $stablo2);
 
-            return self::novoStablo(self::P_NIZ_GRUPA, [$niz, $stablo1], $stablo2);
+            return self::novoStablo(self::P_NIZ_GRUPA, $niz, $stablo);
         } else if (self::ocekuj($tokeni, [self::T_NIZ, self::T_OTV_ZVIJEZDA])) {
             $niz = self::vrijednostTokena($tokeni[0]);
             $tokeni = array_slice($tokeni, 2);
             $stablo1 = self::S1($tokeni);
             self::ocekuj($tokeni, self::T_ZAT_ZVIJEZDA, true);
             $stablo2 = self::S1($tokeni);
+            $stablo = self::novoStablo(self::P_NIZ_GRUPA_ZVIJEZDA, $stablo1, $stablo2);
 
-            return self::novoStablo(self::P_NIZ_GRUPA_ZVIJEZDA, [$niz, $stablo1], $stablo2);
+            return self::novoStablo(self::P_NIZ_GRUPA_ZVIJEZDA, $niz, $stablo);
         } else if (self::ocekuj($tokeni, [self::T_NIZ, self::T_OTV_PLUS])) {
             $niz = self::vrijednostTokena($tokeni[0]);
             $tokeni = array_slice($tokeni, 2);
             $stablo1 = self::S1($tokeni);
             self::ocekuj($tokeni, self::T_ZAT_PLUS, true);
             $stablo2 = self::S1($tokeni);
+            $stablo = self::novoStablo(self::P_NIZ_GRUPA_PLUS, $stablo1, $stablo2);
 
-            return self::novoStablo(self::P_NIZ_GRUPA_PLUS, [$niz, $stablo1], $stablo2);
+            return self::novoStablo(self::P_NIZ_GRUPA_PLUS, $niz, $stablo);
         } else if (self::ocekuj($tokeni, [self::T_NIZ, self::T_OTV_UPITNIK])) {
             $niz = self::vrijednostTokena($tokeni[0]);
             $tokeni = array_slice($tokeni, 2);
             $stablo1 = self::S1($tokeni);
             self::ocekuj($tokeni, self::T_ZAT_UPITNIK, true);
             $stablo2 = self::S1($tokeni);
+            $stablo = self::novoStablo(self::P_NIZ_GRUPA_UPITNIK, $stablo1, $stablo2);
 
-            return self::novoStablo(self::P_NIZ_GRUPA_UPITNIK, [$niz, $stablo1], $stablo2);
+            return self::novoStablo(self::P_NIZ_GRUPA_UPITNIK, $niz, $stablo);
         } else if (self::ocekuj($tokeni, self::T_NIZ)) { //TODO: možemo imati granu za epsilon i uniju kao validne za return null, ali ostali onda
             // mogu prijaviti informativniju grešku o parsiranju oko toga što ne valja
             $tokeni = array_slice($tokeni, 1);
