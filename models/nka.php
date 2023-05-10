@@ -71,7 +71,8 @@ class NKA {
         }
     }
 
-    private static function izNizaZnakova($niz) {
+    private static function izNizaZnakova($regex) {
+        $niz = $regex->ispod;
         $nka = new NKA();
         $ime = self::generirajImeCvora();
         $prosloStanje = [$ime, new Cvor(true, 0, 0)];
@@ -108,9 +109,12 @@ class NKA {
         return $nka;
     }
 
-    private static function izRegexaRekurzivno($regex) { // FIXME: x,y relativno pozicioniranje ovdje je totalno broken
+    private static function izRegexaRekurzivno($regex, $forsirajOznaku = null) { // FIXME: x,y relativno pozicioniranje ovdje je totalno broken
         if ($regex === null)
             return null;
+
+        if ($forsirajOznaku !== null)
+            $regex->oznaka = $forsirajOznaku;
 
         if ($regex->oznaka === Regex::P_UNIJA) {
             $pocetniCvor = new Cvor(false, 0, 0);
@@ -147,31 +151,10 @@ class NKA {
 
             return $nka;
         } else if ($regex->oznaka === Regex::P_GRUPA) {
-            //$pocetniCvor = new Cvor(false, 0, 0);
-            //$ime = self::generirajImeCvora();
-            //$nka = new NKA();
             $lijeviAutomat = self::izRegexaRekurzivno($regex->lijevo);
             $desniAutomat = self::izRegexaRekurzivno($regex->desno);
-            //$nka->dodajCvor($ime, $pocetniCvor, []);
-            if ($lijeviAutomat === null) {
-                if ($desniAutomat === null)
-                    return null;
-
-                $lijeviAutomat = $desniAutomat;
-                $desniAutomat = null;
-            }
-
-            if ($desniAutomat === null) {
-                return $lijeviAutomat;
-            } else {
-                foreach ($lijeviAutomat->zavrsniCvorovi as $lijeviZavrsni) {
-                    $lijeviAutomat->uciniNezavrsnim($lijeviZavrsni);
-                    $lijeviAutomat->dodajPrijelaze($lijeviZavrsni, [[$desniAutomat->pocetniCvor, self::EPSILON_PRIJELAZ]]);
-                }
-
-                self::spojiGrafove($desniAutomat, $lijeviAutomat);
-                return $lijeviAutomat;
-            }
+            
+            return self::konkatenirajAutomate($lijeviAutomat, $desniAutomat);
         } else if ($regex->oznaka === Regex::P_GRUPA_ZVIJEZDA) {
             $lijeviAutomat = self::izRegexaRekurzivno($regex->lijevo);
             $desniAutomat = self::izRegexaRekurzivno($regex->desno);
@@ -181,20 +164,16 @@ class NKA {
 
             $dodatniCvor = new Cvor(true, 0, 0);
             $ime = self::generirajImeCvora();
-            $lijeviAutomat->dodajCvor($ime, $dodatniCvor, [[$lijeviAutomat->pocetniCvor, self::EPSILON_PRIJELAZ]]);
-            $lijeviAutomat->dodajPrijelaze($lijeviAutomat->pocetniCvor, [[$ime, self::EPSILON_PRIJELAZ]]);
 
             foreach ($lijeviAutomat->zavrsniCvorovi as $lijeviZavrsni) {
                 $lijeviAutomat->dodajPrijelaze($lijeviZavrsni, [[$ime, self::EPSILON_PRIJELAZ]]);
+                $lijeviAutomat->uciniNezavrsnim($lijeviZavrsni);
             }
 
-            if ($desniAutomat !== null) {
-                $lijeviAutomat->uciniNezavrsnim($ime);
-                $lijeviAutomat->dodajPrijelaze($ime, [[$desniAutomat->pocetniCvor, self::EPSILON_PRIJELAZ]]);
-            }
+            $lijeviAutomat->dodajCvor($ime, $dodatniCvor, [[$lijeviAutomat->pocetniCvor, self::EPSILON_PRIJELAZ]]);
+            $lijeviAutomat->dodajPrijelaze($lijeviAutomat->pocetniCvor, [[$ime, self::EPSILON_PRIJELAZ]]);
 
-            self::spojiGrafove($desniAutomat, $lijeviAutomat);
-            return $lijeviAutomat;            
+            return self::konkatenirajAutomate($lijeviAutomat, $desniAutomat);
         } else if ($regex->oznaka === Regex::P_GRUPA_UPITNIK) {
             $lijeviAutomat = self::izRegexaRekurzivno($regex->lijevo);
             $desniAutomat = self::izRegexaRekurzivno($regex->desno);
@@ -210,152 +189,30 @@ class NKA {
                 $lijeviAutomat->dodajPrijelaze($lijeviZavrsni, [[$ime, self::EPSILON_PRIJELAZ]]);
             }
 
-            if ($desniAutomat !== null) {
-                $lijeviAutomat->uciniNezavrsnim($ime);
-                $lijeviAutomat->dodajPrijelaze($ime, [[$desniAutomat->pocetniCvor, self::EPSILON_PRIJELAZ]]);
-            }
-
-            self::spojiGrafove($desniAutomat, $lijeviAutomat);
-            return $lijeviAutomat; 
+            return self::konkatenirajAutomate($lijeviAutomat, $desniAutomat);
         } else if ($regex->oznaka === Regex::P_GRUPA_PLUS) {
             $lijeviAutomat = self::izRegexaRekurzivno($regex->lijevo);
-            $drugiAutomat = self::izRegexaRekurzivno($regex->lijevo);
-            $desniAutomat = self::izRegexaRekurzivno($regex->desno);
+            $desniAutomat = self::izRegexaRekurzivno($regex, Regex::P_GRUPA_ZVIJEZDA);
             if ($lijeviAutomat === null) {
                 return $desniAutomat;
             }
 
-            $dodatniCvor = new Cvor(true, 0, 0);
-            $ime = self::generirajImeCvora();
-            foreach ($lijeviAutomat->zavrsniCvorovi as $lijeviZavrsni) {
-                $lijeviAutomat->uciniNezavrsnim($lijeviZavrsni);
-                $lijeviAutomat->dodajPrijelaze($lijeviZavrsni, [[$drugiAutomat->pocetniCvor, self::EPSILON_PRIJELAZ]]);
-            }
-
-            // TODO: refaktorirati sve ovo sa switch-case jer se onda ovo samo svodi na fallthrough kroz PLUS u ZVIJEZDA i sl.
-
-            $drugiAutomat->dodajCvor($ime, $dodatniCvor, [[$drugiAutomat->pocetniCvor, self::EPSILON_PRIJELAZ]]);
-            $drugiAutomat->dodajPrijelaze($drugiAutomat->pocetniCvor, [[$ime, self::EPSILON_PRIJELAZ]]);
-
-            foreach ($drugiAutomat->zavrsniCvorovi as $lijeviZavrsni) {
-                $drugiAutomat->dodajPrijelaze($lijeviZavrsni, [[$ime, self::EPSILON_PRIJELAZ]]);
-            }
-
-            if ($desniAutomat !== null) {
-                $drugiAutomat->uciniNezavrsnim($ime);
-                $drugiAutomat->dodajPrijelaze($ime, [[$desniAutomat->pocetniCvor, self::EPSILON_PRIJELAZ]]);
-            }
-
-            self::spojiGrafove($drugiAutomat, $lijeviAutomat);
-            self::spojiGrafove($desniAutomat, $lijeviAutomat);
-            return $lijeviAutomat;
+            return self::konkatenirajAutomate($lijeviAutomat, $desniAutomat);
         } else if ($regex->oznaka === Regex::P_NIZ) {
-            $nka = new NKA();
-            $ime = self::generirajImeCvora();
-            $prosloStanje = [$ime, new Cvor(true, 0, 0)];
-            $nka->dodajCvor($prosloStanje[0], $prosloStanje[1], []);
-            $nka->uciniPocetnim($ime);
-            foreach ($regex->ispod as $znak) {
-                $nka->uciniNezavrsnim($prosloStanje[0]);
-                $novoStanje = [self::generirajImeCvora(), new Cvor(true, 0, 0)];
-                $nka->dodajCvor($novoStanje[0], $novoStanje[1], []);
-                $nka->dodajPrijelaze($prosloStanje[0], [[$novoStanje[0], $znak]]);
-            }
+            return self::izNizaZnakova($regex);
         } else if ($regex->oznaka === Regex::P_NIZ_GRUPA) {
-            $nka = new NKA();
-            $ime = self::generirajImeCvora();
-            $prosloStanje = [$ime, new Cvor(true, 0, 0)];
-            $nka->dodajCvor($prosloStanje[0], $prosloStanje[1], []);
-            $nka->uciniPocetnim($ime);
-            foreach ($regex->ispod as $znak) {
-                $nka->uciniNezavrsnim($prosloStanje[0]);
-                $novoStanje = [self::generirajImeCvora(), new Cvor(true, 0, 0)];
-                $nka->dodajCvor($novoStanje[0], $novoStanje[1], []);
-                $nka->dodajPrijelaze($prosloStanje[0], [[$novoStanje[0], $znak]]);
-                $prosloStanje = $novoStanje;
-            }
-
-            $lijeviAutomat = self::izRegexaRekurzivno($regex->lijevo);
+            $lijeviAutomat = self::izNizaZnakova($regex->lijevo);
             $desniAutomat = self::izRegexaRekurzivno($regex->desno);
-            $zadnjiAutomat = null;
-            
-            if ($lijeviAutomat === null) {
-                if ($desniAutomat === null)
-                    return $nka;
 
-                $lijeviAutomat = $desniAutomat;
-                $desniAutomat = null;
-            }
-
-            if ($desniAutomat === null) {
-                $zadnjiAutomat = $lijeviAutomat;
-            } else {
-                foreach ($lijeviAutomat->zavrsniCvorovi as $lijeviZavrsni) {
-                    $lijeviAutomat->uciniNezavrsnim($lijeviZavrsni);
-                    $lijeviAutomat->dodajPrijelaze($lijeviZavrsni, [[$desniAutomat->pocetniCvor, self::EPSILON_PRIJELAZ]]);
-                }
-
-                self::spojiGrafove($desniAutomat, $lijeviAutomat);
-                $zadnjiAutomat = $lijeviAutomat;
-            }
-
-            $nka->uciniNezavrsnim($prosloStanje[0]);
-            $nka->dodajPrijelaze($prosloStanje[0], [[$zadnjiAutomat->pocetniCvor, self::EPSILON_PRIJELAZ]]);
-            self::spojiGrafove($zadnjiAutomat, $nka);
-            return $nka;
-        } else if ($regex->oznaka === Regex::P_NIZ_GRUPA_PLUS) {
-            $nka = new NKA();
-            $ime = self::generirajImeCvora();
-            $prosloStanje = [$ime, new Cvor(true, 0, 0)];
-            $nka->dodajCvor($prosloStanje[0], $prosloStanje[1], []);
-            $nka->uciniPocetnim($ime);
-            foreach ($regex->ispod as $znak) {
-                $nka->uciniNezavrsnim($prosloStanje[0]);
-                $novoStanje = [self::generirajImeCvora(), new Cvor(true, 0, 0)];
-                $nka->dodajCvor($novoStanje[0], $novoStanje[1], []);
-                $nka->dodajPrijelaze($prosloStanje[0], [[$novoStanje[0], $znak]]);
-                $prosloStanje = $novoStanje;
-            }
-
-            $lijeviAutomat = self::izRegexaRekurzivno($regex->lijevo);
-            $drugiAutomat = self::izRegexaRekurzivno($regex->lijevo);
+            return self::konkatenirajAutomate($lijeviAutomat, $desniAutomat);
+        } else if ($regex->oznaka === Regex::P_PREFIX_ZNAK) {
+            $lijeviAutomat = self::izNizaZnakova($regex->lijevo);
             $desniAutomat = self::izRegexaRekurzivno($regex->desno);
-            $zadnjiAutomat = null;
-            if ($lijeviAutomat === null) {
-                $zadnjiAutomat = $desniAutomat;
-            } else{
 
-            $dodatniCvor = new Cvor(true, 0, 0);
-            $ime = self::generirajImeCvora();
-            foreach ($lijeviAutomat->zavrsniCvorovi as $lijeviZavrsni) {
-                $lijeviAutomat->uciniNezavrsnim($lijeviZavrsni);
-                $lijeviAutomat->dodajPrijelaze($lijeviZavrsni, [[$drugiAutomat->pocetniCvor, self::EPSILON_PRIJELAZ]]);
-            }
-
-            $drugiAutomat->dodajCvor($ime, $dodatniCvor, [[$drugiAutomat->pocetniCvor, self::EPSILON_PRIJELAZ]]);
-            $drugiAutomat->dodajPrijelaze($drugiAutomat->pocetniCvor, [[$ime, self::EPSILON_PRIJELAZ]]);
-
-            foreach ($drugiAutomat->zavrsniCvorovi as $lijeviZavrsni) {
-                $drugiAutomat->dodajPrijelaze($lijeviZavrsni, [[$ime, self::EPSILON_PRIJELAZ]]);
-            }
-
-            if ($desniAutomat !== null) {
-                $drugiAutomat->uciniNezavrsnim($ime);
-                $drugiAutomat->dodajPrijelaze($ime, [[$desniAutomat->pocetniCvor, self::EPSILON_PRIJELAZ]]);
-            }
-
-            self::spojiGrafove($drugiAutomat, $lijeviAutomat);
-            self::spojiGrafove($desniAutomat, $lijeviAutomat);
-            $zadnjiAutomat = $lijeviAutomat;
+            return self::konkatenirajAutomate($lijeviAutomat, $desniAutomat);
+        } else {
+            throw new RuntimeException('Neočekivani token: ' . $regex->oznaka);
         }
-
-        $nka->uciniNezavrsnim($prosloStanje[0]);
-        $nka->dodajPrijelaze($prosloStanje[0], [[$zadnjiAutomat->pocetniCvor, self::EPSILON_PRIJELAZ]]);
-        self::spojiGrafove($zadnjiAutomat, $nka);
-        return $nka;
-        }
-
-        // TODO ...
     }
 
     public function dodajCvor($stanje, $cvor, $prijelazi) {

@@ -35,16 +35,8 @@ class Regex {
     public const P_GRUPA_ZVIJEZDA       = 3;
     public const P_GRUPA_UPITNIK        = 4;
     public const P_NIZ                  = 5;
-    public const P_PREFIX_ZNAK_PLUS     = 6; // lijevo dijete ima oznaku koja je jednaka paru vrijednosti [T,Z] za TZ*/TZ+/TZ?
-    public const P_PREFIX_ZNAK_ZVIJEZDA = 7;
-    public const P_PREFIX_ZNAK_UPITNIK  = 8;
-    public const P_ZNAK_PLUS            = 9; // kao gore, samo što sada nema T ispred tj. lijevo dijete je samo jedan znak
-    public const P_ZNAK_ZVIJEZDA        = 10;
-    public const P_ZNAK_UPITNIK         = 11;
+    public const P_PREFIX_ZNAK          = 6; // lijevo dijete ima oznaku koja je jednaka paru vrijednosti [T,Z] za TZ*/TZ+/TZ?
     public const P_NIZ_GRUPA            = 12; // T(S1)S1 itd. sve varijante zagrada—ovo je nužno radi mogućnosti nastavljanja niza udesno zagradom!
-    public const P_NIZ_GRUPA_PLUS       = 13;
-    public const P_NIZ_GRUPA_ZVIJEZDA   = 14;
-    public const P_NIZ_GRUPA_UPITNIK    = 15;
 
     public static function fromString($regex) {
         $ulaz = mb_str_split($regex);
@@ -252,40 +244,43 @@ class Regex {
             $tokeni = array_slice($tokeni, 1);
             $podstablo = self::S1($tokeni);
 
-            return self::novoStablo(self::P_ZNAK_ZVIJEZDA, $znak, $podstablo);
+            return self::novoStablo(self::P_GRUPA_ZVIJEZDA, self::novoStablo(self::T_NIZ, [$znak], null), $podstablo);
         } else if (self::ocekuj($tokeni, self::T_ZNAK_PLUS)) {
             $znak = self::vrijednostTokena($tokeni[0]);
             $tokeni = array_slice($tokeni, 1);
             $podstablo = self::S1($tokeni);
 
-            return self::novoStablo(self::P_ZNAK_PLUS, $znak, $podstablo);
+            return self::novoStablo(self::P_GRUPA_PLUS, self::novoStablo(self::T_NIZ, [$znak], null), $podstablo);
         } else if (self::ocekuj($tokeni, self::T_ZNAK_UPITNIK)) {
             $znak = self::vrijednostTokena($tokeni[0]);
             $tokeni = array_slice($tokeni, 1);
             $podstablo = self::S1($tokeni);
 
-            return self::novoStablo(self::P_ZNAK_UPITNIK, $znak, $podstablo);
+            return self::novoStablo(self::P_GRUPA_UPITNIK, self::novoStablo(self::T_NIZ, [$znak], null), $podstablo);
         } else if (self::ocekuj($tokeni, [self::T_NIZ, self::T_ZNAK_ZVIJEZDA])) {
             $niz = self::vrijednostTokena($tokeni[0]);
             $znak = self::vrijednostTokena($tokeni[1]);
             $tokeni = array_slice($tokeni, 2);
             $podstablo = self::S1($tokeni);
+            $stablo = self::novoStablo(self::P_GRUPA_ZVIJEZDA, self::novoStablo(self::T_NIZ, [$znak], null), $podstablo);
 
-            return self::novoStablo(self::P_PREFIX_ZNAK_ZVIJEZDA, [$niz, $znak], $podstablo);
+            return self::novoStablo(self::P_PREFIX_ZNAK, $niz, $stablo);
         } else if (self::ocekuj($tokeni, [self::T_NIZ, self::T_ZNAK_PLUS])) {
             $niz = self::vrijednostTokena($tokeni[0]);
             $znak = self::vrijednostTokena($tokeni[1]);
             $tokeni = array_slice($tokeni, 2);
             $podstablo = self::S1($tokeni);
+            $stablo = self::novoStablo(self::P_GRUPA_PLUS, self::novoStablo(self::T_NIZ, [$znak], null), $podstablo);
 
-            return self::novoStablo(self::P_PREFIX_ZNAK_PLUS, [$niz, $znak], $podstablo);
+            return self::novoStablo(self::P_PREFIX_ZNAK, $niz, $stablo);
         } else if (self::ocekuj($tokeni, [self::T_NIZ, self::T_ZNAK_UPITNIK])) {
             $niz = self::vrijednostTokena($tokeni[0]);
             $znak = self::vrijednostTokena($tokeni[1]);
             $tokeni = array_slice($tokeni, 2);
             $podstablo = self::S1($tokeni);
+            $stablo = self::novoStablo(self::P_GRUPA_UPITNIK, self::novoStablo(self::T_NIZ, [$znak], null), $podstablo);
 
-            return self::novoStablo(self::P_PREFIX_ZNAK_UPITNIK, [$niz, $znak], $podstablo);
+            return self::novoStablo(self::P_PREFIX_ZNAK, $niz, $stablo);
 
         } else if (self::ocekuj($tokeni, [self::T_NIZ, self::T_OTV])) {
             $niz = self::vrijednostTokena($tokeni[0]);
@@ -293,7 +288,7 @@ class Regex {
             $stablo1 = self::S1($tokeni);
             self::ocekuj($tokeni, self::T_ZAT, true);
             $stablo2 = self::S1($tokeni);
-            $stablo = self::novoStablo(self::P_NIZ_GRUPA, $stablo1, $stablo2);
+            $stablo = self::novoStablo(self::P_GRUPA, $stablo1, $stablo2);
 
             return self::novoStablo(self::P_NIZ_GRUPA, $niz, $stablo);
         } else if (self::ocekuj($tokeni, [self::T_NIZ, self::T_OTV_ZVIJEZDA])) {
@@ -302,27 +297,27 @@ class Regex {
             $stablo1 = self::S1($tokeni);
             self::ocekuj($tokeni, self::T_ZAT_ZVIJEZDA, true);
             $stablo2 = self::S1($tokeni);
-            $stablo = self::novoStablo(self::P_NIZ_GRUPA_ZVIJEZDA, $stablo1, $stablo2);
+            $stablo = self::novoStablo(self::P_GRUPA_ZVIJEZDA, $stablo1, $stablo2);
 
-            return self::novoStablo(self::P_NIZ_GRUPA_ZVIJEZDA, $niz, $stablo);
+            return self::novoStablo(self::P_NIZ_GRUPA, $niz, $stablo);
         } else if (self::ocekuj($tokeni, [self::T_NIZ, self::T_OTV_PLUS])) {
             $niz = self::vrijednostTokena($tokeni[0]);
             $tokeni = array_slice($tokeni, 2);
             $stablo1 = self::S1($tokeni);
             self::ocekuj($tokeni, self::T_ZAT_PLUS, true);
             $stablo2 = self::S1($tokeni);
-            $stablo = self::novoStablo(self::P_NIZ_GRUPA_PLUS, $stablo1, $stablo2);
+            $stablo = self::novoStablo(self::P_GRUPA_PLUS, $stablo1, $stablo2);
 
-            return self::novoStablo(self::P_NIZ_GRUPA_PLUS, $niz, $stablo);
+            return self::novoStablo(self::P_NIZ_GRUPA, $niz, $stablo);
         } else if (self::ocekuj($tokeni, [self::T_NIZ, self::T_OTV_UPITNIK])) {
             $niz = self::vrijednostTokena($tokeni[0]);
             $tokeni = array_slice($tokeni, 2);
             $stablo1 = self::S1($tokeni);
             self::ocekuj($tokeni, self::T_ZAT_UPITNIK, true);
             $stablo2 = self::S1($tokeni);
-            $stablo = self::novoStablo(self::P_NIZ_GRUPA_UPITNIK, $stablo1, $stablo2);
+            $stablo = self::novoStablo(self::P_GRUPA_UPITNIK, $stablo1, $stablo2);
 
-            return self::novoStablo(self::P_NIZ_GRUPA_UPITNIK, $niz, $stablo);
+            return self::novoStablo(self::P_NIZ_GRUPA, $niz, $stablo);
         } else if (self::ocekuj($tokeni, self::T_NIZ)) { //TODO: možemo imati granu za epsilon i uniju kao validne za return null, ali ostali onda
             // mogu prijaviti informativniju grešku o parsiranju oko toga što ne valja
             $tokeni = array_slice($tokeni, 1);
