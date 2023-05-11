@@ -15,8 +15,15 @@ class Cvor {
     public function __construct($zavrsno, $x, $y)
     {
         $this->zavrsno = $zavrsno;
-        $this->x = $x;
-        $this->y = $y;
+        $this->x = self::clamp($x, self::RADIJUS);
+        //$this->y = self::clamp($y, self::RADIJUS);
+    }
+
+    private static function clamp($val, $min) {
+        if ($val < $min)
+            return $min;
+        else
+            return $val;
     }
 
     public static function izJSON($json) {
@@ -35,6 +42,7 @@ class NKA {
     // u bazi, što provjeravamo iz posebne ID tablice
     private static $brojStanja = 0;
     private $zavrsniCvorovi = [];
+    private static $trenutniX = 0, $trenutniY = 0;
 
     public const EPSILON_PRIJELAZ = 1;
 
@@ -59,7 +67,37 @@ class NKA {
 
     public static function izRegexa($regex) {
         self::$brojStanja = 0;
+        self::$maxX = self::$minY = 0;
         return self::izRegexaRekurzivno($regex);
+    }
+
+    private static $unija;
+    private static function brojUnija($stablo) {
+        // Prebroji koliko ukupno ima unija u ovom (pod)stablu. Korisno za određivanje potrebnog vertikalnog odmaka podautomata u konstrukciji unije.
+        self::$unija = 0;
+        self::_brojUnija($stablo);
+        return self::$unija;
+    }
+
+    private static function _brojUnija($stablo) {
+        if ($stablo === null)
+            return;
+
+        switch ($stablo->oznaka) {
+            case Regex::P_UNIJA:
+                ++self::$unija; // namjerni fallthrough!
+            case Regex::P_GRUPA:
+            case Regex::P_GRUPA_PLUS:
+            case Regex::P_GRUPA_UPITNIK:
+            case Regex::P_GRUPA_ZVIJEZDA:
+                self::_brojUnija($stablo->lijevo);
+                self::_brojUnija($stablo->desno);
+                break;
+
+            case Regex::P_NIZ_GRUPA:
+                self::_brojUnija($stablo->desno);
+                break;
+        }
     }
 
     private static function spojiGrafove($iz, $u) {
@@ -74,12 +112,12 @@ class NKA {
         $niz = $regex->ispod;
         $nka = new NKA();
         $ime = self::generirajImeCvora();
-        $prosloStanje = [$ime, new Cvor(true, 0, 0)];
+        $prosloStanje = [$ime, new Cvor(true, self::$trenutniX, self::$trenutniY)];
         $nka->dodajCvor($prosloStanje[0], $prosloStanje[1], []);
         $nka->uciniPocetnim($ime);
         foreach ($niz as $znak) {
             $nka->uciniNezavrsnim($prosloStanje[0]);
-            $novoStanje = [self::generirajImeCvora(), new Cvor(true, 0, 0)];
+            $novoStanje = [self::generirajImeCvora(), new Cvor(true, self::$trenutniX, self::$trenutniY)];
             $nka->dodajCvor($novoStanje[0], $novoStanje[1], []);
             $nka->dodajPrijelaze($prosloStanje[0], [[$novoStanje[0], $znak]]);
         }
@@ -116,20 +154,34 @@ class NKA {
             $regex->oznaka = $forsirajOznaku;
 
         if ($regex->oznaka === Regex::P_UNIJA) {
-            $pocetniCvor = new Cvor(false, 0, 0);
+            $pocetniCvor = new Cvor(false, self::$trenutniX, self::$trenutniY);
             $ime = self::generirajImeCvora();
             $nka = new NKA();
-            $lijeviAutomat = self::izRegexaRekurzivno($regex->lijevo);
-            $desniAutomat = self::izRegexaRekurzivno($regex->desno);
             $nka->dodajCvor($ime, $pocetniCvor, []);
             $nka->uciniPocetnim($ime);
+
+            $unijaLijevo = self::brojUnija($regex->lijevo);
+            $gornjiY = self::$trenutniY + Cvor::RADIJUS*2 + (Cvor::MARGINA) * $unijaLijevo;
+            $unijaDesno = self::brojUnija($regex->desno);
+            $donjiY = self::$trenutniY - Cvor::RADIJUS*2 - (Cvor::MARGINA) * $unijaDesno;
+            
+            $stariX = self::$trenutniX;
+            $stariY = self::$trenutniY;
+            self::$trenutniY = $gornjiY;
+            $lijeviAutomat = self::izRegexaRekurzivno($regex->lijevo);
+            self::$trenutniX = $stariX;
+            self::$trenutniY = $donjiY;
+            $desniAutomat = self::izRegexaRekurzivno($regex->desno);
+            $maxX = max($lijeviAutomat->maxX, $desniAutomat->maxX);
+            self::$trenutniX = $maxX;
+            self::$trenutniY = $stariY;
 
             if ($lijeviAutomat !== null)
                 $nka->dodajPrijelaze($ime, [[$lijeviAutomat->pocetniCvor, self::EPSILON_PRIJELAZ]]);
             if ($desniAutomat !== null)
                 $nka->dodajPrijelaze($ime, [[$desniAutomat->pocetniCvor, self::EPSILON_PRIJELAZ]]);
 
-            $zavrsniCvor = new Cvor(true, 0, 0);
+            $zavrsniCvor = new Cvor(true, self::$trenutniX, self::$trenutniY);
             $ime = self::generirajImeCvora();
             $nka->dodajCvor($ime, $zavrsniCvor, []);
             if ($lijeviAutomat !== null) {
@@ -161,7 +213,7 @@ class NKA {
                 return $desniAutomat;
             }
 
-            $dodatniCvor = new Cvor(true, 0, 0);
+            $dodatniCvor = new Cvor(true, self::$trenutniX, self::$trenutniY);
             $ime = self::generirajImeCvora();
 
             foreach ($lijeviAutomat->zavrsniCvorovi as $lijeviZavrsni) {
@@ -180,7 +232,7 @@ class NKA {
                 return $desniAutomat;
             }
 
-            $dodatniCvor = new Cvor(true, 0, 0);
+            $dodatniCvor = new Cvor(true, self::$trenutniX, self::$trenutniY);
             $ime = self::generirajImeCvora();
             $lijeviAutomat->dodajPrijelaze($lijeviAutomat->pocetniCvor, [[$ime, self::EPSILON_PRIJELAZ]]);
 
@@ -209,10 +261,19 @@ class NKA {
         }
     }
 
+    private static $minY = 100000;
+    private static $maxX = -1;
+
     public function dodajCvor($stanje, $cvor, $prijelazi) {
         if (key_exists($cvor, $this->cvorovi))
             throw new LogicException('Ovo stanje već postoji u automatu!');
         $this->cvorovi[$stanje] = $cvor;
+        self::$trenutniX += Cvor::RADIJUS*2 + Cvor::MARGINA;
+        if (self::$trenutniY < self::$minY)
+            self::$minY = self::$trenutniY;
+        if (self::$trenutniX > self::$maxX)
+            self::$maxX = self::$trenutniX;
+
         $this->listaSusjednosti[$stanje] = $prijelazi;
         if ($cvor->zavrsno)
             $this->zavrsniCvorovi[$stanje] = 1;
@@ -220,13 +281,13 @@ class NKA {
 
     public function dodajPrijelaze($stanje, $prijelazi) {
         foreach ($prijelazi as $prijelaz){
-            $this->listaSusjednosti[$stanje][] = $prijelaz; // TODO: bacanje posebne greške ako dodajemo nepostojećeg susjeda?
+            $this->listaSusjednosti[$stanje][] = $prijelaz;
         }
     }
 
     public function pomakniCvor($stanje, $noviX, $noviY) {
         $this->cvorovi[$stanje]->x = $noviX;
-        $this->cvorovi[$stanje]->y = $noviY; //                  TODO: -||-
+        $this->cvorovi[$stanje]->y = $noviY;
     }
 
     public function ukloniCvor($stanje) {
