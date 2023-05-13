@@ -61,14 +61,27 @@ class NKA {
         return $nka;
     }
 
+    private function centriraj() {
+        if (self::$minY < 0) {
+            foreach ($this->cvorovi as $cvor) {
+                $cvor->y -= self::$minY;
+            }
+        }
+    }
+
     private static function generirajImeCvora() {
         return '$q_{' . (self::$brojStanja++) . '}$';
     }
 
     public static function izRegexa($regex) {
         self::$brojStanja = 0;
-        self::$maxX = self::$minY = 0;
-        return self::izRegexaRekurzivno($regex);
+        self::$maxX = -1;
+        self::$minY = 100000;
+        self::$trenutniX = 0;
+        self::$trenutniY = 0;
+
+        $nka = self::izRegexaRekurzivno($regex);
+        return $nka->centriraj();
     }
 
     private static $unija;

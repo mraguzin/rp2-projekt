@@ -265,58 +265,58 @@ class Regex {
 
             return self::novoStablo(self::P_NIZ_GRUPA, $niz, $stablo);
         } else if (self::ocekuj($tokeni, [self::T_NIZ, self::T_ZNAK_PLUS])) {
-            $niz = self::vrijednostTokena($tokeni[0]);
+            $stabloNiza = self::novoStablo(self::P_NIZ, self::vrijednostTokena($tokeni[0]), null);
             $znak = self::vrijednostTokena($tokeni[1]);
             $tokeni = array_slice($tokeni, 2);
             $podstablo = self::S1($tokeni);
             $stablo = self::novoStablo(self::P_GRUPA_PLUS, self::novoStablo(self::T_NIZ, [$znak], null), $podstablo);
 
-            return self::novoStablo(self::P_NIZ_GRUPA, $niz, $stablo);
+            return self::novoStablo(self::P_NIZ_GRUPA, $stabloNiza, $stablo);
         } else if (self::ocekuj($tokeni, [self::T_NIZ, self::T_ZNAK_UPITNIK])) {
-            $niz = self::vrijednostTokena($tokeni[0]);
+            $stabloNiza = self::novoStablo(self::P_NIZ, self::vrijednostTokena($tokeni[0]), null);
             $znak = self::vrijednostTokena($tokeni[1]);
             $tokeni = array_slice($tokeni, 2);
             $podstablo = self::S1($tokeni);
             $stablo = self::novoStablo(self::P_GRUPA_UPITNIK, self::novoStablo(self::T_NIZ, [$znak], null), $podstablo);
 
-            return self::novoStablo(self::P_NIZ_GRUPA, $niz, $stablo);
+            return self::novoStablo(self::P_NIZ_GRUPA, $stabloNiza, $stablo);
 
         } else if (self::ocekuj($tokeni, [self::T_NIZ, self::T_OTV])) {
-            $niz = self::vrijednostTokena($tokeni[0]);
+            $stabloNiza = self::novoStablo(self::P_NIZ, self::vrijednostTokena($tokeni[0]), null);
             $tokeni = array_slice($tokeni, 2);
             $stablo1 = self::S1($tokeni);
             self::ocekuj($tokeni, self::T_ZAT, true);
             $stablo2 = self::S1($tokeni);
             $stablo = self::novoStablo(self::P_GRUPA, $stablo1, $stablo2);
 
-            return self::novoStablo(self::P_NIZ_GRUPA, $niz, $stablo);
+            return self::novoStablo(self::P_NIZ_GRUPA, $stabloNiza, $stablo);
         } else if (self::ocekuj($tokeni, [self::T_NIZ, self::T_OTV_ZVIJEZDA])) {
-            $niz = self::vrijednostTokena($tokeni[0]);
+            $stabloNiza = self::novoStablo(self::P_NIZ, self::vrijednostTokena($tokeni[0]), null);
             $tokeni = array_slice($tokeni, 2);
             $stablo1 = self::S1($tokeni);
             self::ocekuj($tokeni, self::T_ZAT_ZVIJEZDA, true);
             $stablo2 = self::S1($tokeni);
             $stablo = self::novoStablo(self::P_GRUPA_ZVIJEZDA, $stablo1, $stablo2);
 
-            return self::novoStablo(self::P_NIZ_GRUPA, $niz, $stablo);
+            return self::novoStablo(self::P_NIZ_GRUPA, $stabloNiza, $stablo);
         } else if (self::ocekuj($tokeni, [self::T_NIZ, self::T_OTV_PLUS])) {
-            $niz = self::vrijednostTokena($tokeni[0]);
+            $stabloNiza = self::novoStablo(self::P_NIZ, self::vrijednostTokena($tokeni[0]), null);
             $tokeni = array_slice($tokeni, 2);
             $stablo1 = self::S1($tokeni);
             self::ocekuj($tokeni, self::T_ZAT_PLUS, true);
             $stablo2 = self::S1($tokeni);
             $stablo = self::novoStablo(self::P_GRUPA_PLUS, $stablo1, $stablo2);
 
-            return self::novoStablo(self::P_NIZ_GRUPA, $niz, $stablo);
+            return self::novoStablo(self::P_NIZ_GRUPA, $stabloNiza, $stablo);
         } else if (self::ocekuj($tokeni, [self::T_NIZ, self::T_OTV_UPITNIK])) {
-            $niz = self::vrijednostTokena($tokeni[0]);
+            $stabloNiza = self::novoStablo(self::P_NIZ, self::vrijednostTokena($tokeni[0]), null);
             $tokeni = array_slice($tokeni, 2);
             $stablo1 = self::S1($tokeni);
             self::ocekuj($tokeni, self::T_ZAT_UPITNIK, true);
             $stablo2 = self::S1($tokeni);
             $stablo = self::novoStablo(self::P_GRUPA_UPITNIK, $stablo1, $stablo2);
 
-            return self::novoStablo(self::P_NIZ_GRUPA, $niz, $stablo);
+            return self::novoStablo(self::P_NIZ_GRUPA, $stabloNiza, $stablo);
         } else if (self::ocekuj($tokeni, self::T_NIZ)) { //TODO: možemo imati granu za epsilon i uniju kao validne za return null, ali ostali onda
             // mogu prijaviti informativniju grešku o parsiranju oko toga što ne valja
             $tokeni = array_slice($tokeni, 1);
@@ -325,6 +325,77 @@ class Regex {
         }
 
         return null;
+    }
+
+    private function minimizirajZagrade() {
+        switch ($this->oznaka) {
+            case self::P_GRUPA:
+                if ($this->desno === null) {
+                    if ($this->lijevo === null)
+                        return null;
+                    else
+                        return $this->lijevo->minimizirajZagrade();
+                } else {
+                    if ($this->lijevo !== null)
+                        $this->lijevo = $this->lijevo->minimizirajZagrade();
+                    $this->desno = $this->desno->minimizirajZagrade();
+                }
+                break;
+
+            case self::P_GRUPA_PLUS:
+            case self::P_GRUPA_UPITNIK:
+            case self::P_GRUPA_ZVIJEZDA:
+            case self::P_UNIJA:
+                if ($this->lijevo !== null)
+                    $this->lijevo = $this->lijevo->minimizirajZagrade();
+                if ($this->desno !== null)
+                    $this->desno = $this->desno->minimizirajZagrade();
+                break;
+
+            case self::P_NIZ_GRUPA:
+                if ($this->desno !== null)
+                    $this->desno = $this->desno->minimizirajZagrade();
+                break;
+        }
+
+        return $this;
+    }
+
+    private function minimizirajUnije() {
+        switch ($this->oznaka) {
+            case self::P_GRUPA:
+            case self::P_GRUPA_PLUS:
+            case self::P_GRUPA_UPITNIK:
+            case self::P_GRUPA_ZVIJEZDA:
+                if ($this->lijevo !== null)
+                    $this->lijevo->minimizirajUnije();
+                if ($this->desno !== null)
+                    $this->desno->minimizirajUnije();
+                break;
+
+            case self::P_NIZ_GRUPA:
+                if ($this->desno !== null)
+                    $this->desno = $this->desno->minimizirajZagrade();
+                break;
+
+            case self::P_UNIJA:
+                if ($this->lijevo === null && $this->desno === null) {
+                    return null;
+                }
+
+                if ($this->lijevo === null)
+                    return $this->desno;
+                else
+                    return $this->lijevo;
+                break;
+        }
+
+        return $this;
+    }
+
+    public function minimiziraj() {
+        $this->minimizirajZagrade();
+        $this->minimizirajUnije();
     }
 }
 ?>
