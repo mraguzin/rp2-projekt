@@ -39,7 +39,7 @@ class Regex {
 
     public static function fromString($regex) {
         $ulaz = mb_str_split($regex);
-        $tokeni = self::lex($ulaz); // TODO: dodaj minimizaciju stabala za sljedeća podstabla: ((...)*)*, ((...)), (|...|)
+        $tokeni = self::lex($ulaz);
         return self::parsiraj($tokeni);
     }
 
@@ -327,55 +327,34 @@ class Regex {
         return null;
     }
 
-    private function minimizirajZagrade() {
+    // Vraća minimiziran regex AST
+    public function minimiziraj() {
         switch ($this->oznaka) {
             case self::P_GRUPA:
                 if ($this->desno === null) {
                     if ($this->lijevo === null)
                         return null;
                     else
-                        return $this->lijevo->minimizirajZagrade();
+                        return $this->lijevo->minimiziraj();
                 } else {
-                    if ($this->lijevo !== null)
-                        $this->lijevo = $this->lijevo->minimizirajZagrade();
-                    $this->desno = $this->desno->minimizirajZagrade();
+                    if ($this->lijevo !== null) {
+                        $this->lijevo = $this->lijevo->minimiziraj();
+                        $this->desno = $this->desno->minimiziraj();
+                    } else {
+                        return $this->desno->minimiziraj();
+                    }
                 }
                 break;
 
             case self::P_GRUPA_PLUS:
             case self::P_GRUPA_UPITNIK:
             case self::P_GRUPA_ZVIJEZDA:
-            case self::P_UNIJA:
                 if ($this->lijevo !== null)
-                    $this->lijevo = $this->lijevo->minimizirajZagrade();
+                    $this->lijevo = $this->lijevo->minimiziraj();
+                else
+                    return $this->desno;
                 if ($this->desno !== null)
-                    $this->desno = $this->desno->minimizirajZagrade();
-                break;
-
-            case self::P_NIZ_GRUPA:
-                if ($this->desno !== null)
-                    $this->desno = $this->desno->minimizirajZagrade();
-                break;
-        }
-
-        return $this;
-    }
-
-    private function minimizirajUnije() {
-        switch ($this->oznaka) {
-            case self::P_GRUPA:
-            case self::P_GRUPA_PLUS:
-            case self::P_GRUPA_UPITNIK:
-            case self::P_GRUPA_ZVIJEZDA:
-                if ($this->lijevo !== null)
-                    $this->lijevo->minimizirajUnije();
-                if ($this->desno !== null)
-                    $this->desno->minimizirajUnije();
-                break;
-
-            case self::P_NIZ_GRUPA:
-                if ($this->desno !== null)
-                    $this->desno = $this->desno->minimizirajZagrade();
+                    $this->desno = $this->desno->minimiziraj();
                 break;
 
             case self::P_UNIJA:
@@ -384,18 +363,18 @@ class Regex {
                 }
 
                 if ($this->lijevo === null)
-                    return $this->desno;
+                    return $this->desno->minimiziraj();
                 else
-                    return $this->lijevo;
+                    return $this->lijevo->minimiziraj();
+                break;
+
+            case self::P_NIZ_GRUPA:
+                if ($this->desno !== null)
+                    $this->desno = $this->desno->minimiziraj();
                 break;
         }
 
         return $this;
-    }
-
-    public function minimiziraj() {
-        $this->minimizirajZagrade();
-        $this->minimizirajUnije();
     }
 }
 ?>
